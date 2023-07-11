@@ -18,7 +18,6 @@ class LiTSPreprocess:
         self.size = args.min_slices
         self.xy_down_scale = args.xy_down_scale
         self.slice_down_scale = args.slice_down_scale
-
         self.valid_rate = args.valid_rate
 
     def process(self, ct_path, ct_file, seg_path, classes=None):
@@ -74,7 +73,7 @@ class LiTSPreprocess:
         new_ct.SetSpacing((ct.GetSpacing()[0] * int(1 / self.xy_down_scale),
                            ct.GetSpacing()[1] * int(1 / self.xy_down_scale), self.slice_down_scale))
 
-        new_seg = sitk.GetImageFromArray(ct_array)
+        new_seg = sitk.GetImageFromArray(seg_array)
         new_seg.SetDirection(ct.GetDirection())
         new_seg.SetOrigin(ct.GetOrigin())
         new_seg.SetSpacing((ct.GetSpacing()[0] * int(1 / self.xy_down_scale),
@@ -111,7 +110,7 @@ class LiTSPreprocess:
         val_name_list = data_name_list[
                         int(data_num * (1 - self.valid_rate)):int(data_num * ((1 - self.valid_rate) + self.valid_rate))]
 
-        self.write_name_list(train_name_list, 'train_path_list.text')
+        self.write_name_list(train_name_list, 'train_path_list.txt')
         self.write_name_list(val_name_list, 'val_path_list.txt')
 
     def write_name_list(self, name_list, file_name):

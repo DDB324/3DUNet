@@ -6,4 +6,7 @@
 /experiments/*/
 /fixed_data/
 /.vscode/
-dataset
+*.nii
+*.txt
+*.text
+*.nii.gz
