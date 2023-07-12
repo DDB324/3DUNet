@@ -61,6 +61,11 @@ class RandomCrop:
         return tmp_img, tmp_mask
 
 
+def random_number():
+    prob = (random.uniform(0, 1), random.uniform(0, 1))
+    return prob
+
+
 class RandomFlipLR:
     def __init__(self, prob=0.5):
         self.prob = prob
@@ -71,7 +76,7 @@ class RandomFlipLR:
         return img
 
     def __call__(self, img, mask):
-        prob = (random.uniform(0, 1), random.uniform(0, 1))
+        prob = random_number()
         return self._flip(img, prob), self._flip(mask, prob)
 
 
@@ -85,7 +90,7 @@ class RandomFlipUD:
         return img
 
     def __call__(self, img, mask):
-        prob = (random.uniform(0, 1), random.uniform(0, 1))
+        prob = random_number()
         return self._flip(img, prob), self._flip(mask, prob)
 
 

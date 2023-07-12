@@ -67,11 +67,14 @@ def train(model, train_loader, optimizer, loss_func, n_labels, alpha, device):
 
 
 if __name__ == '__main__':
+    # 必要参数
     args = config.args
+    device = torch.device('cpu' if args.cpu else 'cuda')
+
+    # 创建保存路径
     save_path = os.path.join('./experiments', args.save)
     if not os.path.exists(save_path):
         os.mkdir(save_path)
-    device = torch.device('cpu' if args.cpu else 'cuda')
 
     # data info
     train_loader = DataLoader(dataset=TrainDataset(args), batch_size=args.batch_size, num_workers=args.n_threads,
@@ -101,7 +104,7 @@ if __name__ == '__main__':
 
         # Save checkpoint
         state = {'net': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': epoch}
-        torch.save(state, os.paht.join(save_path, 'latest_model.pth'))
+        torch.save(state, os.path.join(save_path, 'latest_model.pth'))
         trigger += 1
         if val_log['Val_dice_liver'] > best[1]:
             print('Saving best model')
