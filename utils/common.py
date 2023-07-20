@@ -1,4 +1,8 @@
-import torch, random
+import SimpleITK as sitk
+import numpy as np
+import random
+import torch
+import SimpleITK as sitk
 
 
 def to_one_hot_3d(tensor, n_classes=3):
@@ -44,9 +48,7 @@ def load_file_name_list(file_path):
             lines = file_to_read.readline().strip()
             if not lines:
                 break
-                pass
-            file_name_list.append(lines)
-            pass
+            file_name_list.append(lines.split())
     return file_name_list
 
 
@@ -67,3 +69,20 @@ def adjust_learning_rate(optimizer, epoch, args):
 def adjust_learning_rate_v2(optimizer, lr):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+
+
+def read_image(path, img_type, return_number='1'):
+    if img_type not in ['ct', 'seg']:
+        raise ValueError("Invalid parameter value. Expected 'ct' or 'seg'.")
+    img = sitk.ReadImage(path, sitk.sitkInt16 if img_type == 'ct' else sitk.sitkInt8)
+    np_array = sitk.GetArrayFromImage(img)
+    if return_number == '2':
+        return img, np_array
+    else:
+        return np_array
+
+
+def clip_array(np_array, lower, upper):
+    np_array[np_array > upper] = upper
+    np_array[np_array < lower] = lower
+    return np_array

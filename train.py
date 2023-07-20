@@ -9,7 +9,7 @@ import os
 
 from models import UNet, ResUNet, KiUNet_min, SegNet
 
-from dataset.dataset_lits_train import TrainDataset
+from dataset.dataset_lits import LiTSDataset
 from dataset.dataset_lits_val import ValDataset
 
 from utils import metrics, common, loss, weights_init, logger
@@ -77,7 +77,7 @@ if __name__ == '__main__':
         os.mkdir(save_path)
 
     # data info
-    train_loader = DataLoader(dataset=TrainDataset(args), batch_size=args.batch_size, num_workers=args.n_threads,
+    train_loader = DataLoader(dataset=LiTSDataset(args), batch_size=args.batch_size, num_workers=args.n_threads,
                               shuffle=True)
     val_loader = DataLoader(dataset=ValDataset(args), batch_size=1, num_workers=args.n_threads, shuffle=False)
 
