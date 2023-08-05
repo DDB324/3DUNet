@@ -1,4 +1,6 @@
 import random
+from typing import Tuple, List, Callable
+
 import torch
 from torchvision import transforms
 import numpy as np
@@ -36,93 +38,79 @@ class RandomResize:
         return img[0], mask[0].long()
 
 
-def _get_range(slices, crop_slices):
-    if slices < crop_slices:
-        start = 0
-    else:
-        start = random.randint(0, slices - crop_slices)
-    end = start + crop_slices
-    if end > slices:
-        end = slices
-    return start, end
-
-
 class RandomCrop:
-    def __init__(self, slices):
-        self.slices = slices
+    def __init__(self, crop_size: int = 48):
+        if crop_size < 0:
+            raise ValueError("Crop size must be positive.")
+        self.crop_size: int = crop_size
 
-    def __call__(self, img, mask):
-        ss, es = _get_range(mask.size(1), self.slices)
+    @staticmethod
+    def _get_range(img_slices: int, crop_size: int) -> Tuple[int, int]:
+        start = 0 if img_slices < crop_size else random.randint(0, img_slices - crop_size)
+        end = min(start + crop_size, img_slices)
+        return start, end
 
-        tmp_img = torch.zeros(img.size(0), self.slices, img.size(2), img.size(3))
-        tmp_mask = torch.zeros(mask.size(0), self.slices, mask.size(2), mask.size(3))
-        tmp_img[:, :es - ss] = img[:, ss:es]
-        tmp_mask[:, :es - ss] = mask[:, ss:es]
-        return tmp_img, tmp_mask
+    def __call__(self, img: torch.Tensor, mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        img_slices = img.size(1)
+        start, end = self._get_range(img_slices, self.crop_size)
+
+        cropped_img = img[:, start:end]
+        cropped_mask = mask[:, start:end]
+        return cropped_img, cropped_mask
 
 
-def random_number():
-    prob = (random.uniform(0, 1), random.uniform(0, 1))
-    return prob
-
-
-class RandomFlipLR:
-    def __init__(self, prob=0.5):
+class RandomFlip:
+    def __init__(self, prob: float = 0.5, flip_lr: bool = True, flip_ud: bool = True):
         self.prob = prob
+        self.flip_lr = flip_lr
+        self.flip_ud = flip_ud
 
-    def _flip(self, img, prob):
-        if prob[0] <= self.prob:
+    def _flip(self, img: torch.Tensor, prob: Tuple[float, float], flip_lr: bool, flip_ud: bool) -> torch.Tensor:
+        if flip_lr and prob[0] <= self.prob:
             img = img.flip(2)
-        return img
 
-    def __call__(self, img, mask):
-        prob = random_number()
-        return self._flip(img, prob), self._flip(mask, prob)
-
-
-class RandomFlipUD:
-    def __init__(self, prob=0.5):
-        self.prob = prob
-
-    def _flip(self, img, prob):
-        if prob[1] <= self.prob:
+        if flip_ud and prob[1] <= self.prob:
             img = img.flip(3)
         return img
 
-    def __call__(self, img, mask):
-        prob = random_number()
-        return self._flip(img, prob), self._flip(mask, prob)
-
-
-def _rotate(img, cnt):
-    img = torch.rot90(img, cnt, [1, 2])
-    return img
+    def __call__(self, img: torch.Tensor, mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        prob = (random.uniform(0, 1), random.uniform(0, 1))
+        img = self._flip(img, prob, self.flip_lr, self.flip_ud)
+        mask = self._flip(mask, prob, self.flip_lr, self.flip_ud)
+        return img, mask
 
 
 class RandomRotate:
     def __init__(self, max_cnt=3):
         self.max_cnt = max_cnt
 
+    @staticmethod
+    def _rotate(img, cnt):
+        img = torch.rot90(img, cnt, [1, 2])
+        return img
+
     def __call__(self, img, mask):
         cnt = random.randint(0, self.max_cnt)
-        return _rotate(img, cnt), _rotate(mask, cnt)
+        return self._rotate(img, cnt), self._rotate(mask, cnt)
 
 
 class CenterCrop:
-    def __init__(self, base, max_size):
-        self.base = base  # base默认为16，4次下采样后为1
-        self.max_size = max_size
-        if self.max_size % self.base:
-            self.max_size = self.max_size - self.max_size % self.base  # max_size为限制最大采样slices数，防止显存溢出，应为16倍数
+    def __init__(self, crop_max_size: int, base: int = 16):
+        if base <= 0:
+            raise ValueError("Base value must be positive.")
+        self.base: int = base  # base默认为16，4次下采样后为1
+        # max_size为限制最大采样slices数，防止显存溢出，应为base倍数
+        self.crop_max_size: int = crop_max_size - crop_max_size % self.base
 
-    def __call__(self, img, label):
-        if img.size(1) < self.base:
-            return None
-        slice_num = img.size(1) - img.size(1) % self.base
-        slice_num = min(self.max_size, slice_num)
+    def __call__(self, img: torch.Tensor, label: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        img_slices: int = img.size(1)
+        if img_slices < self.base:
+            raise ValueError("Image size too small for cropping")
 
-        left = img.size(1) // 2 - slice_num // 2
-        right = img.size(1) // 2 + slice_num // 2
+        crop_size = min(self.crop_max_size, img_slices - img_slices % self.base)
+
+        left = img_slices // 2 - crop_size // 2
+        right = left + crop_size
 
         crop_img = img[:, left:right]
         crop_label = label[:, left:right]
@@ -149,10 +137,10 @@ class Normalize:
 
 
 class Compose:
-    def __init__(self, transform):
-        self.transforms = transform
+    def __init__(self, transforms_list: List[Callable]):
+        self.transforms = transforms_list
 
-    def __call__(self, img, mask):
+    def __call__(self, img: torch.Tensor, mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         for t in self.transforms:
             img, mask = t(img, mask)
         return img, mask
