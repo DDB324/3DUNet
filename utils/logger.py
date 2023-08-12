@@ -1,66 +1,59 @@
-from collections import OrderedDict
+import csv
+import os
+from collections import OrderedDict, defaultdict
 
 import numpy as np
-import pandas as pd
 import random
 import torch
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 
-class TrainLogger:
+class Logger:
     def __init__(self, save_path, save_name):
-        self.log = None
-        self.summary = None
+        self.log = defaultdict(list)
+        self.summary = SummaryWriter(save_path)
         self.save_path = save_path
         self.save_name = save_name
 
-    def update(self, epoch, train_log, val_log):
-        item = OrderedDict({'epoch': epoch})
+    def update_train_val(self, epoch, train_log, val_log):
+        item = {'epoch': epoch}
         item.update(train_log)
         item.update(val_log)
-        # item = dict_round(item,4) # 保留小数点后四位有效数字
         print("\033[0;33mTrain:\033[0m", train_log)
         print("\033[0;33mValid:\033[0m", val_log)
-        self.update_csv(item)
-        self.update_tensorboard(item)
+        self._update_log(item)
+        self._update_tensorboard(item)
 
-    def update_csv(self, item):
-        tmp = pd.DataFrame(item, index=[0])
-        if self.log is not None:
-            self.log = self.log.append(tmp, ignore_index=True)
-        else:
-            self.log = tmp
-        self.log.to_csv('%s/%s.csv' % (self.save_path, self.save_name), index=False)
+    def update_test(self, img_name, test_log):
+        item = {'img_name': img_name}
+        item.update(test_log)
+        print("\033[0;33mTrain:\033[0m", test_log)
+        self._update_log(item)
 
-    def update_tensorboard(self, item):
-        if self.summary is None:
-            self.summary = SummaryWriter('%s/' % self.save_path)
+    def _update_log(self, item):
+        for key, value in item.items():
+            self.log[key].append(value)
+
+        # Save to CSV file
+        self._save_to_csv(item)
+
+    def _update_tensorboard(self, item):
         epoch = item['epoch']
         for key, value in item.items():
             if key != 'epoch':
                 self.summary.add_scalar(key, value, epoch)
 
+    def _save_to_csv(self, item):
+        file_path = os.path.join(self.save_path, f"{self.save_name}.csv")
+        header = not os.path.exists(file_path)
+        with open(file_path, 'a', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=item.keys())
+            if header:
+                writer.writeheader()
+            writer.writerow(item)
 
-class TestLogger:
-    def __init__(self, save_path, save_name):
-        self.log = None
-        self.summary = None
-        self.save_path = save_path
-        self.save_name = save_name
-
-    def update(self, name, log):
-        item = OrderedDict({'img_name': name})
-        item.update(log)
-        print("\033[0;33mTest:\033[0m", log)
-        self.update_csv(item)
-
-    def update_csv(self, item):
-        tmp = pd.DataFrame(item, index=[0])
-        if self.log is not None:
-            self.log = self.log.append(tmp, ignore_index=True)
-        else:
-            self.log = tmp
-        self.log.to_csv('%s/%s.csv' % (self.save_path, self.save_name), index=False)
+    def close(self):
+        self.summary.close()
 
 
 def setup_seed(seed):

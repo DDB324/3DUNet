@@ -13,20 +13,23 @@ parser.add_argument('--n_labels', type=int, default=2, help='number of classes, 
                                                             'tumor set to 3')
 parser.add_argument('--upper', type=int, default=200, help='maximum gray value')
 parser.add_argument('--lower', type=int, default=-200, help='minimum gray value')
-parser.add_argument('--norm_factor', type=float, default=200.0, help='')
+parser.add_argument('--norm_factor', type=float, default=200.0, help='Normalization Factor')
 parser.add_argument('--expand_slice', type=int, default=20, help='')
 parser.add_argument('--min_slices', type=int, default=48, help='')
-parser.add_argument('--xy_down_scale', type=float, default=0.5,
+parser.add_argument('--xy_down_scale', type=float, default=1.0,
                     help='Control the scaling ratio in the x-axis and y-axis directions')
 parser.add_argument('--slice_down_scale', type=float, default=1.0,
                     help='Control the scaling ratio in the z-axis direction')
 parser.add_argument('--valid_rate', type=float, default=0.2, help='')
 
 # data in/out and dataset
-parser.add_argument('--dataset_path', default=r'C:\Users\DDB\PycharmProjects\unet\dataset\fixed_lits',
+# parser.add_argument('--dataset_path', default=r'D:\dataset\LiTS\fixed_lits',
+#                     help='fixed trainset root path')
+parser.add_argument('--dataset_path', default=r'/root/autodl-tmp/lits_dataset/fixed_lits',
                     help='fixed trainset root path')
-parser.add_argument('--test_data_path', default=r'C:\Users\DDB\Desktop\LiTS\test', help='Testset path')
-parser.add_argument('--save', default='ResUNet', help='save path of trained model')
+
+parser.add_argument('--test_data_path', default=r'D:\dataset\LiTS\test', help='Testset path')
+parser.add_argument('--save', default='ResUNet_8_11', help='save path of trained model')
 parser.add_argument('--batch_size', type=list, default=2, help='batch size of trainset')
 
 # train

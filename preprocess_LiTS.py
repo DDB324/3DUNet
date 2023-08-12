@@ -1,5 +1,5 @@
 import argparse
-from typing import List, Union
+from typing import List, Union, Tuple
 import numpy as np
 import os
 import SimpleITK as sitk
@@ -42,7 +42,8 @@ class LiTSPreprocess:
         self._write_name_list(train_name_list, 'train_path_list.txt')
         self._write_name_list(val_name_list, 'val_path_list.txt')
 
-    def _add_slice(self, seg_array: np.ndarray):
+    # 从seg图像获取有标注的图像的范围，并前后各增加20张。
+    def _get_liver_start_end_slice(self, seg_array: np.ndarray):
         # 找到肝脏区域开始和结束的slice，并各向外扩张来增加切片的数量
         # z = [False False False False False False False False False False False False
         #  False False False False False False False False False False False False
@@ -76,6 +77,33 @@ class LiTSPreprocess:
                               self.slice_down_scale))
         return new_array
 
+    def _down_sampling(self, ct: sitk.Image, ct_array_clip: np.ndarray, seg_array: np.ndarray) -> \
+            Tuple[np.ndarray, np.ndarray]:
+        # ct.GetSpacing() = (0.703125, 0.703125, 5.0)
+        # order=3为三次样条插值
+        # 三次样条插值（Cubic Spline Interpolation）： 三次样条插值是一种更精细的插值方法，它使用三次多项式来逼近像素之间的曲线。
+        # 这种方法通常能够产生更平滑的插值结果，但相对计算量较大。
+        spacing = ct.GetSpacing()[-1]
+        ct_array_down_scale = ndimage.zoom(ct_array_clip,
+                                           (spacing / self.slice_down_scale, self.xy_down_scale,
+                                            self.xy_down_scale),
+                                           order=3)
+        # order=0为最近邻插值
+        # 最近邻插值可以保持 mask 图像中的不同区域的分割边界，不会引入额外的像素值。
+        # 这对于分割任务来说是重要的，因为保持准确的区域边界可以有助于正确分割不同的结构。
+        seg_array_down_scale = ndimage.zoom(seg_array,
+                                            (spacing / self.slice_down_scale, self.xy_down_scale,
+                                             self.xy_down_scale),
+                                            order=0)
+        return ct_array_down_scale, seg_array_down_scale
+
+    def _get_reserved_slices(self, ct_array_down_scale: np.ndarray, seg_array_down_scale: np.ndarray) -> \
+            Tuple[np.ndarray, np.ndarray]:
+        start_slice, end_slice = self._get_liver_start_end_slice(seg_array_down_scale)
+        ct_array_reserved = ct_array_down_scale[start_slice:end_slice + 1, :, :]
+        seg_array_reserved = seg_array_down_scale[start_slice:end_slice + 1, :, :]
+        return ct_array_reserved, seg_array_reserved
+
     def _process(self, ct_path: str, ct_file: str, seg_path: str, classes: int):
         ct, ct_array = read_image(ct_path, 'ct')
         seg, seg_array = read_image(seg_path, 'seg')
@@ -88,27 +116,13 @@ class LiTSPreprocess:
         # truncate the value of the gray value outside the threshold
         ct_array_clip = clip_array(ct_array, self.lower, self.upper)
 
-        # 降采样，对x和y轴进行降采样，slice轴的spacing归一化到slice_down_scale
-        # ct.GetSpacing() = (0.703125, 0.703125, 5.0)
-        ct_array_down_scale = ndimage.zoom(ct_array_clip,
-                                           (ct.GetSpacing()[-1] / self.slice_down_scale, self.xy_down_scale,
-                                            self.xy_down_scale),
-                                           order=3)
-        seg_array_down_scale = ndimage.zoom(seg_array,
-                                            (ct.GetSpacing()[-1] / self.slice_down_scale, self.xy_down_scale,
-                                             self.xy_down_scale),
-                                            order=0)
+        # 降采样，对x和y轴进行降采样. 插值，slice轴的spacing进行插值
+        ct_array_down_scale, seg_array_down_scale = self._down_sampling(ct, ct_array_clip, seg_array)
 
-        start_slice, end_slice = self._add_slice(seg_array_down_scale)
-
-        # 如果这时候剩下的slice数量小于最小切片数量，直接放弃。一般不会
-        if end_slice - start_slice + 1 < self.size:
-            print('Too little slice, give up the sample:', ct_file)
-            return None, None
-        # 截取保留区域
-        ct_array_reserved = ct_array_down_scale[start_slice:end_slice + 1, :, :]
-        seg_array_reserved = seg_array_down_scale[start_slice:end_slice + 1, :, :]
+        # 截取有标注的图像的范围
+        ct_array_reserved, seg_array_reserved = self._get_reserved_slices(ct_array_down_scale, seg_array_down_scale)
         print('Preprocessed shape:', 'ct:', ct_array_reserved.shape, ' seg:', seg_array_reserved.shape)
+
         # 保存为对应的格式
         new_ct = self._save_specified_area(ct, ct_array_reserved)
         new_seg = self._save_specified_area(ct, seg_array_reserved)
@@ -128,18 +142,16 @@ class LiTSPreprocess:
             new_ct: Union[None, sitk.Image]
             new_seg: Union[None, sitk.Image]
             new_ct, new_seg = self._process(ct_path, ct_file, seg_path, classes=self.classes)
-            if new_ct is not None and new_seg is not None:
-                sitk.WriteImage(new_ct, os.path.join(self.fixed_path, 'ct', ct_file))
-                sitk.WriteImage(new_seg, os.path.join(self.fixed_path, 'label',
-                                                      ct_file.replace('volume', 'segmentation').replace('.nii',
-                                                                                                        '.nii.gz')))
+            sitk.WriteImage(new_ct, os.path.join(self.fixed_path, 'ct', ct_file))
+            sitk.WriteImage(new_seg, os.path.join(self.fixed_path, 'label',
+                                                  ct_file.replace('volume', 'segmentation').replace('.nii', '.nii.gz')))
 
     def _generate_train_val_list(self, data_name_list, data_num):
         random.shuffle(data_name_list)
         assert self.valid_rate < 1.0
-        train_name_list = data_name_list[0:int(data_num * (1 - self.valid_rate))]
-        val_name_list = data_name_list[
-                        int(data_num * (1 - self.valid_rate)):int(data_num * ((1 - self.valid_rate) + self.valid_rate))]
+        train_index = int(data_num * (1 - self.valid_rate))
+        train_name_list = data_name_list[:train_index]
+        val_name_list = data_name_list[train_index:]
         return train_name_list, val_name_list
 
     def _write_name_list(self, name_list, file_name):
@@ -152,8 +164,8 @@ class LiTSPreprocess:
 
 
 def main():
-    raw_dataset_path: str = r'C:\Users\DDB\Desktop\LiTS\train'
-    fixed_dataset_path: str = r'C:\Users\DDB\Desktop\fixed_lits'
+    raw_dataset_path: str = r'D:\dataset\LiTS\train'
+    fixed_dataset_path: str = r'D:\dataset\LiTS\fixed_lits_512'
 
     args: argparse.Namespace = config.args
     tool = LiTSPreprocess(raw_dataset_path, fixed_dataset_path, args)

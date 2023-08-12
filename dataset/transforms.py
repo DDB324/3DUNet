@@ -54,8 +54,8 @@ class RandomCrop:
         img_slices = img.size(1)
         start, end = self._get_range(img_slices, self.crop_size)
 
-        cropped_img = img[:, start:end]
-        cropped_mask = mask[:, start:end]
+        cropped_img = img[:, start:end, :, :]
+        cropped_mask = mask[:, start:end, :, :]
         return cropped_img, cropped_mask
 
 
@@ -67,10 +67,10 @@ class RandomFlip:
 
     def _flip(self, img: torch.Tensor, prob: Tuple[float, float], flip_lr: bool, flip_ud: bool) -> torch.Tensor:
         if flip_lr and prob[0] <= self.prob:
-            img = img.flip(2)
+            img = img.flip(3)
 
         if flip_ud and prob[1] <= self.prob:
-            img = img.flip(3)
+            img = img.flip(2)
         return img
 
     def __call__(self, img: torch.Tensor, mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -95,7 +95,7 @@ class RandomRotate:
 
 
 class CenterCrop:
-    def __init__(self, crop_max_size: int, base: int = 16):
+    def __init__(self, crop_max_size: int = 96, base: int = 16):
         if base <= 0:
             raise ValueError("Base value must be positive.")
         self.base: int = base  # base默认为16，4次下采样后为1
@@ -112,8 +112,8 @@ class CenterCrop:
         left = img_slices // 2 - crop_size // 2
         right = left + crop_size
 
-        crop_img = img[:, left:right]
-        crop_label = label[:, left:right]
+        crop_img = img[:, left:right, :, :]
+        crop_label = label[:, left:right, :, :]
         return crop_img, crop_label
 
 
