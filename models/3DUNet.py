@@ -9,27 +9,77 @@ import torch
 from torch import nn
 
 
-class ConvBlock(nn.Module):
+class UNetEncoder(nn.Module):
     def __init__(self, in_channels, out_channels):
-        super(ConvBlock, self).__init__()
+        super(UNetEncoder, self).__init__()
         self.conv_block = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+        )
+
+        self.maxpool = nn.MaxPool3d(kernel_size=2, stride=2)
+
+    def forward(self, x):
+        x = self.conv_block(x)
+        skip_connection = x
+        x = self.maxpool(x)
+        return x, skip_connection
+
+
+class UNetDecoder(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(UNetDecoder, self).__init__()
+        self.up_conv_block = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=2, stride=2)
+        self.conv_block = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.ReLU(inplace=True)
         )
 
-    def forward(self, x):
-        return self.conv_block(x)
-
-
-class UpConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(UpConvBlock, self).__init__()
-        self.up_conv_block = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=2, stride=2)
-
-    def forward(self, x, skip):
+    def forward(self, x, skip_connection):
         x = self.up_conv_block(x)
-        x = torch.cat([x, skip], dim=1)
+        x = torch.cat([x, skip_connection], dim=1)
+        x = self.conv_block(x)
+        return x
+
+
+class UNet3D(nn.Module):
+    def __int__(self, in_channels, out_channels, num_channels=64):
+        super(UNet3D, self).__int__()
+
+        self.encoder1 = UNetEncoder(in_channels, num_channels)
+        self.encoder2 = UNetEncoder(num_channels, num_channels * 2)
+        self.encoder3 = UNetEncoder(num_channels * 2, num_channels * 4)
+        self.encoder4 = UNetEncoder(num_channels * 4, num_channels * 8)
+
+        self.center = nn.Sequential(
+            nn.Conv3d(num_channels * 8, num_channels * 16, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(num_channels * 16, num_channels * 8, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+
+        self.decoder4 = UNetDecoder(num_channels * 16, num_channels * 4)
+        self.decoder3 = UNetDecoder(num_channels * 8, num_channels * 2)
+        self.decoder2 = UNetDecoder(num_channels * 4, num_channels)
+        self.decoder1 = UNetDecoder(num_channels * 2, out_channels)
+
+    def forward(self, x):
+        x, skip1 = self.encoder1(x)
+        x, skip2 = self.encoder2(x)
+        x, skip3 = self.encoder3(x)
+        x, skip4 = self.encoder4(x)
+
+        x = self.center(x)
+
+        x = self.decoder4(x, skip4)
+        x = self.decoder3(x, skip3)
+        x = self.decoder2(x, skip2)
+        x = self.decoder1(x, skip1)
+
         return x
 
 
@@ -72,5 +122,15 @@ def test_conv3d_dilation():
     print("输出数据尺寸dilation:", output_data.shape)
 
 
+def main():
+    # 创建模型实例
+    in_channels = 1  # 输入图像的通道数
+    out_channels = 1  # 输出图像的通道数
+    model = UNet3D(in_channels, out_channels)
+
+    # 打印模型结构
+    print(model)
+
+
 if __name__ == '__main__':
-    test_conv3d_dilation()
+    main()
