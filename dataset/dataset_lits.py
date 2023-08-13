@@ -16,13 +16,13 @@ class LiTSDataset(Dataset):
         # 根据train和val，采取不同的处理方法
         self.args = args
         if dataset_type == 'train':
-            self.dataset_file_name: str = 'train_path_list_win.txt'
+            self.dataset_file_name: str = 'train_path_list.txt'
             self.transforms = Compose([
                 RandomCrop(self.args.crop_size),
                 RandomFlip(prob=0.5, flip_lr=True, flip_ud=True),
             ])
         else:
-            self.dataset_file_name = 'val_path_list_win.txt'
+            self.dataset_file_name = 'val_path_list.txt'
             self.transforms = Compose([CenterCrop(crop_max_size=args.val_crop_max_size, base=16)])
 
         self.filename_list = load_file_name_list(os.path.join(args.dataset_path, self.dataset_file_name))
