@@ -28,6 +28,39 @@ class ResidualBlock(nn.Module):
         return x
 
 
+class ResUNet3D(nn.Module):
+    def __init__(self, in_channels, num_classes):
+        super(ResUNet3D, self).__init__()
+        self.encoder = nn.ModuleList([
+            ResidualBlock(in_channels, 64),
+            nn.MaxPool3d(kernel_size=2, stride=2),
+            ResidualBlock(64, 128),
+            nn.MaxPool3d(kernel_size=2, stride=2),
+            ResidualBlock(128, 256),
+            nn.MaxPool3d(kernel_size=2, stride=2),
+            ResidualBlock(256, 512),
+            nn.MaxPool3d(kernel_size=2, stride=2),
+            ResidualBlock(512, 1024),
+            nn.MaxPool3d(kernel_size=2, stride=2),
+        ])
+
+        self.decoder = nn.ModuleList([
+            nn.ConvTranspose3d(256, 128, kernel_size=2, stride=2)
+        ])
+
+        self.final_conv = nn.Conv3d(64,num_classes,kernel_size=1)
+
+    def forward(self,x):
+        encoder_outputs = []
+
+        for block in self.encoder:
+            x = block(x)
+            encoder_outputs.append(x)
+
+        for i, block in enumerate(self.decoder):
+            x = block(x)
+            x = torch.cat([x,])
+
 class ResUNet(nn.Module):
     def __init__(self, in_channel=1, out_channel=2, training=True):
         super().__init__()
