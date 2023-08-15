@@ -11,6 +11,23 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class ResidualBlock(nn.Module):
+    def __int__(self, in_channels, out_channels):
+        super(ResidualBlock, self).__int__()
+        self.conv1 = nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        residual = x
+        x = self.conv1(x)
+        x = self.relu(x)
+        x = self.conv2(x)
+        x += residual
+        x = self.relu(x)
+        return x
+
+
 class ResUNet(nn.Module):
     def __init__(self, in_channel=1, out_channel=2, training=True):
         super().__init__()
@@ -20,119 +37,119 @@ class ResUNet(nn.Module):
 
         self.encoder_stage1 = nn.Sequential(
             nn.Conv3d(in_channel, 16, kernel_size=3, padding=1),
-            nn.PReLU(),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(16, 16, kernel_size=3, padding=1),
-            nn.PReLU(),
+            nn.ReLU(inplace=True),
         )
 
         self.encoder_stage2 = nn.Sequential(
             nn.Conv3d(32, 32, kernel_size=3, padding=1),
-            nn.PReLU(32),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(32, 32, kernel_size=3, padding=1),
-            nn.PReLU(32),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(32, 32, kernel_size=3, padding=1),
-            nn.PReLU(32),
+            nn.ReLU(inplace=True),
         )
 
         self.encoder_stage3 = nn.Sequential(
             nn.Conv3d(64, 64, kernel_size=3, padding=1),
-            nn.PReLU(64),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(64, 64, kernel_size=3, padding=2, dilation=2),
-            nn.PReLU(64),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(64, 64, kernel_size=3, padding=4, dilation=4),
-            nn.PReLU(64),
+            nn.ReLU(inplace=True),
         )
 
         self.encoder_stage4 = nn.Sequential(
             nn.Conv3d(128, 128, kernel_size=3, padding=3, dilation=3),
-            nn.PReLU(128),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(128, 128, kernel_size=3, padding=4, dilation=4),
-            nn.PReLU(128),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(128, 128, kernel_size=3, padding=5, dilation=5),
-            nn.PReLU(128),
+            nn.ReLU(inplace=True),
         )
 
         self.decoder_stage1 = nn.Sequential(
             nn.Conv3d(128, 256, kernel_size=3, padding=1),
-            nn.PReLU(256),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(256, 256, kernel_size=3, padding=1),
-            nn.PReLU(256),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(256, 256, kernel_size=3, padding=1),
-            nn.PReLU(256),
+            nn.ReLU(inplace=True),
         )
 
         self.decoder_stage2 = nn.Sequential(
             nn.Conv3d(128 + 64, 128, kernel_size=3, padding=1),
-            nn.PReLU(128),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(128, 128, kernel_size=3, padding=1),
-            nn.PReLU(128),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(128, 128, kernel_size=3, padding=1),
-            nn.PReLU(128),
+            nn.ReLU(inplace=True),
         )
 
         self.decoder_stage3 = nn.Sequential(
             nn.Conv3d(64 + 32, 64, kernel_size=3, padding=1),
-            nn.PReLU(64),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(64, 64, kernel_size=3, padding=1),
-            nn.PReLU(64),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(64, 64, kernel_size=3, padding=1),
-            nn.PReLU(64),
+            nn.ReLU(inplace=True),
         )
 
         self.decoder_stage4 = nn.Sequential(
             nn.Conv3d(32 + 16, 32, kernel_size=3, padding=1),
-            nn.PReLU(32),
+            nn.ReLU(inplace=True),
 
             nn.Conv3d(32, 32, kernel_size=3, padding=1),
-            nn.PReLU(32),
+            nn.ReLU(inplace=True),
         )
 
         self.down_conv1 = nn.Sequential(
             nn.Conv3d(16, 32, kernel_size=2, stride=2),
-            nn.PReLU(32)
+            nn.ReLU(inplace=True)
         )
 
         self.down_conv2 = nn.Sequential(
             nn.Conv3d(32, 64, kernel_size=2, stride=2),
-            nn.PReLU(64)
+            nn.ReLU(inplace=True)
         )
 
         self.down_conv3 = nn.Sequential(
             nn.Conv3d(64, 128, kernel_size=2, stride=2),
-            nn.PReLU(128)
+            nn.ReLU(inplace=True)
         )
 
         self.down_conv4 = nn.Sequential(
             nn.Conv3d(128, 256, kernel_size=3, padding=1),
-            nn.PReLU(256)
+            nn.ReLU(inplace=True)
         )
 
         self.up_conv2 = nn.Sequential(
             nn.ConvTranspose3d(256, 128, kernel_size=2, stride=2),
-            nn.PReLU(128)
+            nn.ReLU(inplace=True)
         )
 
         self.up_conv3 = nn.Sequential(
             nn.ConvTranspose3d(128, 64, kernel_size=2, stride=2),
-            nn.PReLU(64)
+            nn.ReLU(inplace=True)
         )
 
         self.up_conv4 = nn.Sequential(
             nn.ConvTranspose3d(64, 32, kernel_size=2, stride=2),
-            nn.PReLU(32)
+            nn.ReLU(inplace=True)
         )
 
         # 最后大尺度下的映射（256*256），下面的尺度依次递减
